@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- SPDX-License-Identifier: LicenseRef-Proprietary  Copyright (C) 2026 cristiulian -->
+<title>Critical Mass Sound</title>
+<meta name="description" content="A sound shared from a Critical Mass FM-1: hear it, copy its code, put it on your FM-1.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* A sound shared from an FM-1 (its SHARE: a QR code holding this page's link, the sound after the #: nothing is
+   stored anywhere else). Phone first: its name, a keyboard to hear it, then ways to keep it. tools/share (docs/SHARE.md) */
+:root {
+  --bg: #eceff3; --panel: #ffffff; --ink: #18202b; --muted: #5b6677; --line: #d4d9e1; --grid: #e3e7ed;
+  --accent: #d4531a; --accent-ink: #ffffff; --ok: #2c7a4b; --warn: #9a6200; --bad: #b3261e;
+  --key: #ffffff; --key-dark: #232a35; --key-on: #f3c3a8;
+  --display: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151b; --panel: #1a2029; --ink: #e5e9ef; --muted: #96a2b3; --line: #2d3644; --grid: #222a35;
+  --accent: #ff7c3f; --accent-ink: #1a1008; --ok: #5cc28a; --warn: #e0a53a; --bad: #ff7a70;
+  --key: #d9dee6; --key-dark: #0b0e12; --key-on: #ff9e6e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151b; --panel: #1a2029; --ink: #e5e9ef; --muted: #96a2b3; --line: #2d3644; --grid: #222a35;
+  --accent: #ff7c3f; --accent-ink: #1a1008; --ok: #5cc28a; --warn: #e0a53a; --bad: #ff7a70;
+  --key: #d9dee6; --key-dark: #0b0e12; --key-on: #ff9e6e; color-scheme: dark }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(18px, env(safe-area-inset-top, 0px)); padding-bottom: max(28px, env(safe-area-inset-bottom, 0px)); }
+.wrap { max-width: 620px; margin: 0 auto; display: grid; gap: 14px; }
+.brand { font: 600 13px/1 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.brand b { color: var(--accent); font-weight: 700; }
+h1 { font: 700 clamp(34px, 11vw, 52px)/1 var(--display); letter-spacing: 0.02em; margin: 6px 0 0; overflow-wrap: anywhere; }
+h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag { font: 600 11.5px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px;
+  border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.tag.main { color: var(--accent); border-color: var(--accent); }
+.made { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0;
+  display: grid; gap: 12px; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { font: 600 14px/1 var(--body); padding: 12px 14px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); cursor: pointer; min-height: 44px; }
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.grow { flex: 1 1 150px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* the keyboard: two octaves from the octave chosen, white keys a row, black keys over them */
+.kbd { position: relative; display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); height: 150px;
+  user-select: none; -webkit-user-select: none; touch-action: none; }
+.kbd button { font: 500 10px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); cursor: pointer;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 7px; }
+.kbd .w { background: var(--key); border-radius: 0 0 6px 6px; margin: 0 1px; grid-row: 1; }
+.kbd .b { position: absolute; top: 0; height: 60%; background: var(--key-dark); border-color: var(--key-dark);
+  border-radius: 0 0 5px 5px; z-index: 2; color: transparent; }
+.kbd button.on { background: var(--key-on); }
+.oct { display: flex; align-items: center; gap: 8px; }
+.oct span { font: 500 13px/1 var(--mono); color: var(--muted); min-width: 64px; text-align: center; }
+.oct .btn { min-width: 44px; padding: 10px; }
+code.cm { display: block; font: 500 12px/1.4 var(--mono); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px; max-height: 92px; overflow: auto; overflow-wrap: anywhere; word-break: break-all; }
+.msg { font-size: 14px; padding: 10px 12px; border-radius: 8px; border-left: 3px solid var(--line); background: var(--panel); }
+.msg.bad { border-left-color: var(--bad); } .msg.ok { border-left-color: var(--ok); } .msg.warn { border-left-color: var(--warn); }
+details { border-top: 1px solid var(--line); padding-top: 10px; }
+summary { cursor: pointer; font: 600 14px/1.2 var(--display); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.params { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; margin-top: 10px;
+  font-size: 13px; }
+.params dt { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.params dd { margin: 0; font: 500 12.5px/1.6 var(--mono); text-align: right; }
+.params .grp { grid-column: 1 / -1; font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase;
+  margin-top: 10px; color: var(--ink); }
+textarea { width: 100%; font: 500 13px/1.4 var(--mono); padding: 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); min-height: 76px; resize: vertical; }
+footer { color: var(--muted); font-size: 12.5px; text-align: center; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  background: var(--ink); color: var(--panel); padding: 10px 16px; border-radius: 9px; font-size: 14px; z-index: 30; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div>
+    <div class="brand"><b>Critical Mass</b> · FM-1 sound</div>
+    <h1 id="name">Opening…</h1>
+    <div class="tags" id="tags"></div>
+    <p class="made" id="made" hidden></p>
+  </div>
+  <div id="msgs"></div>
+
+  <section class="panel" id="hear" hidden aria-labelledby="h-hear">
+    <div class="row" style="justify-content: space-between">
+      <h2 id="h-hear">Hear it</h2>
+      <div class="oct" aria-label="Octave">
+        <button class="btn" id="down" aria-label="An octave down">−</button>
+        <span id="octName">C3</span>
+        <button class="btn" id="up" aria-label="An octave up">+</button>
+      </div>
+    </div>
+    <div class="kbd" id="kbd" role="group" aria-label="Keyboard: tap a key to play the sound"></div>
+    <p class="hint" id="hearHint">Tap a key. Each note is played by the FM-1's own synth, here in your browser.</p>
+  </section>
+
+  <section class="panel" id="keep" hidden aria-labelledby="h-keep">
+    <h2 id="h-keep">Put it on your FM-1</h2>
+    <div class="row">
+      <button class="btn primary grow" id="sendTry">Try it on my FM-1</button>
+      <button class="btn grow" id="sendSave">Save it on my FM-1</button>
+    </div>
+    <p class="hint" id="usbHint">Over USB, in Chrome or Edge on a computer, or Chrome on Android (a USB-C cable). iPhones and
+      iPads can't reach the FM-1 from a page: copy the code instead and use the Librarian on a computer.</p>
+    <div class="row">
+      <button class="btn grow" id="copyCode">Copy the code</button>
+      <button class="btn grow" id="copyLink">Copy the link</button>
+      <button class="btn grow" id="download">Download the file</button>
+    </div>
+    <code class="cm" id="code"></code>
+    <p class="hint">The code (CM1:…) goes into the Critical Mass Librarian, a chat or a forum post; the file
+      (.cmpatch.json) into the Librarian or the command line tools.</p>
+    <details>
+      <summary>Every setting</summary>
+      <dl class="params" id="params"></dl>
+    </details>
+  </section>
+
+  <section class="panel" id="empty" hidden aria-labelledby="h-empty">
+    <h2 id="h-empty">Sounds shared from an FM-1</h2>
+    <p class="hint">On a Critical Mass FM-1, hold SAVE for half a second: the sound appears as a QR code. Scan it with a
+      phone's camera and it opens here, to hear and to keep. The sound travels inside the link itself: nothing is
+      uploaded or stored anywhere.</p>
+    <label class="hint" for="paste">Or paste a shared link, or a code (CM1:…):</label>
+    <textarea id="paste" spellcheck="false" autocapitalize="off"></textarea>
+    <div class="row"><button class="btn primary" id="openPaste">Open it</button></div>
+  </section>
+
+  <footer>The sound lives in this page's link: nothing was sent to any server.<br>
+    © cristiulian. Critical Mass is free to use; not to be copied, modified or redistributed.</footer>
+</main>
+<div class="toast" id="toast" hidden role="status"></div>
+<script src="cmcore.js"></script>
+<script>
+(async () => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  let cm, rec, patch, octave = 3, ctx, device, access;
+  const cache = new Map();
+
+  function say(text, kind) {
+    const d = document.createElement('div');
+    d.className = 'msg ' + (kind || '');
+    d.textContent = text;
+    $('msgs').replaceChildren(d);
+  }
+  function toast(text) {
+    const t = $('toast');
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => { t.hidden = true; }, 1800);
+  }
+  async function copy(text, what) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(what + ' copied');
+    } catch (e) {
+      say('Copying was not allowed here: select the code above and copy it.', 'warn');
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------- the sound ---
+  function show(p, record) {
+    patch = p;
+    rec = record;
+    const name = (p.name || 'UNNAMED').trim();
+    $('name').textContent = name;
+    document.title = name + ' · Critical Mass Sound';
+    const tags = $('tags');
+    tags.replaceChildren();
+    for (const t of p.tags.length ? p.tags : [p.category].filter(Boolean)) {
+      const s = document.createElement('span');
+      s.className = 'tag' + (t === p.category ? ' main' : '');
+      s.textContent = t;
+      tags.append(s);
+    }
+    const from = p.params.from;
+    $('made').hidden = !from || from === name;
+    $('made').textContent = from ? 'Made from the factory preset ' + from : '';
+    $('code').textContent = CM.codeOf(rec);
+    const dl = $('params');
+    dl.replaceChildren();
+    const shown = cm.show(rec);
+    let group = '';
+    for (const [k, v] of Object.entries(shown)) {
+      const g = k.split('.')[0].replace(/[0-9]+$/, m => ' ' + m).toUpperCase();
+      if (g !== group) {
+        group = g;
+        const h = document.createElement('div');
+        h.className = 'grp';
+        h.textContent = g;
+        dl.append(h);
+      }
+      const dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = k.split('.').slice(1).join('.') || k;
+      dd.textContent = v;
+      dl.append(dt, dd);
+    }
+    $('hear').hidden = $('keep').hidden = false;
+    $('empty').hidden = true;
+    cache.clear();
+    drawKeys();
+    setTimeout(() => { try { voice(60); voice(48); } catch (e) { /* (heard when tapped) */ } }, 400);
+  }
+
+  function open(text) {
+    const t = (text || '').trim();
+    if (!t) return false;
+    const p = CM.fromCode(cm, t);
+    show(p, CM.recordOf(cm, p));
+    $('msgs').replaceChildren();
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------------------- the keyboard ---
+  const WHITE = [0, 2, 4, 5, 7, 9, 11];
+  function drawKeys() {
+    const k = $('kbd');
+    k.replaceChildren();
+    $('octName').textContent = 'C' + octave + ' – C' + (octave + 2);
+    const base = 12 * (octave + 1);
+    let w = 0;
+    for (let n = 0; n <= 24; n++) {
+      const pc = n % 12, white = WHITE.includes(pc), b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.note = base + n;
+      b.setAttribute('aria-label', NOTE[pc] + (octave + Math.floor(n / 12)));
+      if (white) {
+        b.className = 'w';
+        b.style.gridColumn = String(w + 1);
+        b.textContent = pc === 0 ? 'C' + (octave + n / 12) : '';
+        w++;
+      } else {
+        b.className = 'b';
+        b.style.left = 'calc(' + (w / 15 * 100) + '% - ' + (100 / 15 * 0.32) + '%)';
+        b.style.width = (100 / 15 * 0.64) + '%';
+      }
+      k.append(b);
+    }
+  }
+  function voice(note) {                       // the note as the FM-1 plays it (rendered once, kept)
+    if (!cache.has(note)) cache.set(note, cm.render(rec, note, 100, 0.9, 2.6));
+    return cache.get(note);
+  }
+  function play(note, key) {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();   // (made and woken by the tap itself)
+    if (ctx.state === 'suspended') ctx.resume();
+    key.classList.add('on');                   // (lit at once; a note not heard yet takes a moment to make)
+    setTimeout(() => {
+      try {
+        const v = voice(note), buf = ctx.createBuffer(2, v.l.length, cm.rate), s = ctx.createBufferSource();
+        buf.copyToChannel(v.l, 0);
+        buf.copyToChannel(v.r, 1);
+        s.buffer = buf;
+        s.connect(ctx.destination);
+        s.start();
+      } catch (e) {
+        say('This sound could not be played here: ' + e.message, 'bad');
+      }
+      setTimeout(() => key.classList.remove('on'), 220);
+    }, 0);
+  }
+  $('kbd').addEventListener('pointerdown', e => {
+    const b = e.target.closest('button');
+    if (b) { e.preventDefault(); play(+b.dataset.note, b); }
+  });
+  $('kbd').addEventListener('keydown', e => {
+    const b = e.target.closest('button');
+    if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); play(+b.dataset.note, b); }
+  });
+  $('down').onclick = () => { octave = Math.max(1, octave - 1); drawKeys(); };
+  $('up').onclick = () => { octave = Math.min(5, octave + 1); drawKeys(); };
+
+  // ------------------------------------------------------------------------------------- keeping it ---
+  $('copyCode').onclick = () => copy(CM.codeOf(rec), 'The code');
+  $('copyLink').onclick = () => copy(location.href, 'The link');
+  $('download').onclick = () => {
+    const blob = new Blob([JSON.stringify(patch, null, 2) + '\n'], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (patch.name || 'sound').trim().replace(/[^A-Za-z0-9+&#.-]+/g, '-').toLowerCase() + '.cmpatch.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  async function connect() {                  // the FM-1 over USB-MIDI (its SysEx: docs/PATCH-EXCHANGE.md)
+    if (!navigator.requestMIDIAccess) {
+      throw new Error(/iPhone|iPad|iPod/.test(navigator.userAgent)
+        ? 'iPhones and iPads cannot reach the FM-1 from a page. Copy the code and use the Librarian on a computer.'
+        : 'This browser has no Web MIDI: open this link in Chrome or Edge.');
+    }
+    try {
+      access = access || await navigator.requestMIDIAccess({ sysex: true });
+    } catch (e) {
+      throw new Error('MIDI was not allowed: allow MIDI and SysEx when the browser asks, then try again.');
+    }
+    const outs = [...access.outputs.values()], ins = [...access.inputs.values()];
+    const out = outs.find(o => /critical mass|fm-1|fm1/i.test(o.name)) || outs[0];
+    if (!out) throw new Error('No FM-1 found: plug it in with its USB cable, then try again.');
+    const inp = ins.find(i => i.name === out.name) || ins.find(i => /critical mass|fm-1|fm1/i.test(i.name)) || ins[0];
+    device = new CM.Device(inp, out);
+    const h = await device.hello();
+    if (h.recordVersion < rec[4]) {
+      throw new Error('This FM-1 runs older firmware: update it to put this sound on it.');
+    }
+    return h;
+  }
+  async function busy(btn, fn) {
+    const all = [$('sendTry'), $('sendSave')];
+    all.forEach(b => { b.disabled = true; });
+    const label = btn.textContent;
+    btn.textContent = 'Sending…';
+    try {
+      await fn();
+    } catch (e) {
+      say(e.message, 'bad');
+    } finally {
+      btn.textContent = label;
+      all.forEach(b => { b.disabled = false; });
+    }
+  }
+  $('sendTry').onclick = () => busy($('sendTry'), async () => {
+    await connect();
+    await device.write(rec, 'try');
+    say('Playing on your FM-1 now (not saved: choose another sound there and it is gone).', 'ok');
+  });
+  $('sendSave').onclick = () => busy($('sendSave'), async () => {
+    const h = await connect(), slots = await device.list();
+    const free = slots.find(s => !s.used);
+    if (!free) throw new Error('All ' + h.slots + ' user slots are taken: free one, or use the Librarian to replace one.');
+    await device.write(rec, free.slot);
+    say('Saved on your FM-1 in U' + String(free.slot).padStart(2, '0') + '.', 'ok');
+  });
+
+  // ------------------------------------------------------------------------------------------- start ---
+  try {
+    cm = await CM.load('cmcore.wasm');
+  } catch (e) {
+    $('name').textContent = 'Not opened';
+    say('The synth engine did not load (' + e.message + '). Reload the page.', 'bad');
+    return;
+  }
+  function fromHash() {
+    const h = decodeURIComponent(location.hash.slice(1));
+    if (!h) {
+      $('name').textContent = 'No sound here yet';
+      $('empty').hidden = false;
+      $('hear').hidden = $('keep').hidden = true;
+      return;
+    }
+    try {
+      open(h);
+    } catch (e) {
+      $('name').textContent = 'Not a sound';
+      $('empty').hidden = false;
+      say('This link does not hold a sound this page can read (' + e.message + '). It may be cut short, or come ' +
+        'from a newer FM-1: then this page will catch up soon.', 'bad');
+    }
+  }
+  $('openPaste').onclick = () => {
+    const t = $('paste').value.trim();
+    try {
+      if (/^CM1:/.test(t)) {
+        open(t);
+        history.replaceState(null, '', '#' + cm.share(rec));
+      } else {
+        location.hash = t.includes('#') ? t.slice(t.indexOf('#') + 1) : t;
+      }
+    } catch (e) {
+      say(e.message, 'bad');
+    }
+  };
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>
