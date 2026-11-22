@@ -15,7 +15,7 @@
 :root {
   --bg: #eceff3; --panel: #ffffff; --ink: #18202b; --muted: #5b6677; --line: #d4d9e1; --grid: #e3e7ed;
   --accent: #d4531a; --accent-ink: #ffffff; --ok: #2c7a4b; --warn: #9a6200; --bad: #b3261e;
-  --key: #ffffff; --key-dark: #232a35; --key-on: #f3c3a8;
+  --key: #ffffff; --key-dark: #232a35; --key-on: #f28a5a;
   --display: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -23,11 +23,11 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #11151b; --panel: #1a2029; --ink: #e5e9ef; --muted: #96a2b3; --line: #2d3644; --grid: #222a35;
   --accent: #ff7c3f; --accent-ink: #1a1008; --ok: #5cc28a; --warn: #e0a53a; --bad: #ff7a70;
-  --key: #d9dee6; --key-dark: #0b0e12; --key-on: #ff9e6e; color-scheme: dark } }
+  --key: #d9dee6; --key-dark: #0b0e12; --key-on: #f28a5a; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #11151b; --panel: #1a2029; --ink: #e5e9ef; --muted: #96a2b3; --line: #2d3644; --grid: #222a35;
   --accent: #ff7c3f; --accent-ink: #1a1008; --ok: #5cc28a; --warn: #e0a53a; --bad: #ff7a70;
-  --key: #d9dee6; --key-dark: #0b0e12; --key-on: #ff9e6e; color-scheme: dark }
+  --key: #d9dee6; --key-dark: #0b0e12; --key-on: #f28a5a; color-scheme: dark }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
@@ -76,7 +76,11 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 .kbd .w { background: var(--key); border-radius: 0 0 6px 6px; margin: 0 1px; grid-row: 1; }
 .kbd .b { position: absolute; top: 0; height: 60%; background: var(--key-dark); border-color: var(--key-dark);
   border-radius: 0 0 5px 5px; z-index: 2; color: transparent; }
-.kbd button.on { background: var(--key-on); }
+/* a key held lights as on the FM-1 (the emulator's: app/web/emu/app.js): one light, the same for white and black */
+.kbd button { transition: background-color .06s; }
+.kbd button.on { background: var(--key-on); border-color: var(--key-on); color: #2a140a; }
+.kbd .b.on { border-color: var(--panel); box-shadow: 0 0 0 1px var(--panel); }   /* (its edge kept over a lit white key) */
+@media (prefers-reduced-motion: reduce) { .kbd button { transition: none; } }
 .namerow { display: flex; align-items: center; gap: 16px; }   /* (Back as shared always beside the name: a long name
                                                                   takes a second line) */
 .namerow h1 { flex: 0 1 auto; min-width: 0; }
