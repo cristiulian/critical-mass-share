@@ -59,6 +59,8 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 /* the sound's eight macro knobs (as the FM-1's home page names them): drag up or down, arrows, a double tap resets */
 .knobs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 6px; }
 @media (min-width: 560px) { .knobs { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.knob.lfo1st { grid-column-start: 1; }         /* each LFO from a row's start; two to a row when it is wide */
+@media (min-width: 560px) { .knob.lfo1st.even { grid-column-start: 5; } }
 .knob { display: grid; justify-items: center; gap: 3px; padding: 4px 0 2px; border-radius: 10px; cursor: ns-resize;
   touch-action: none; user-select: none; -webkit-user-select: none; min-width: 0; }
 .knob svg { width: 100%; max-width: 58px; aspect-ratio: 1; display: block; }
@@ -122,12 +124,13 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     </div>
     <div class="knobs" id="knobs" role="group" aria-label="The sound's eight macro knobs"></div>
     <div id="lfoWrap" hidden>
-      <div class="sublabel">LFO offsets</div>
-      <div class="knobs" id="lfoKnobs" role="group" aria-label="The offsets of the LFOs the sound uses"></div>
+      <div class="sublabel">LFO rates and offsets</div>
+      <div class="knobs" id="lfoKnobs" role="group" aria-label="The rates and offsets of the LFOs the sound uses"></div>
     </div>
     <div class="row">
-      <p class="hint" style="flex: 1 1 200px">Drag a knob up or down to change the sound (the LFO offsets: where each
-        shape's cycle starts); double-tap one to put it back.
+      <p class="hint" style="flex: 1 1 200px">Drag a knob up or down to change the sound (an LFO's rate: a note value of
+        the tempo when it is synced, else Hz; its offsets: where each shape's cycle starts); double-tap one to put it
+        back.
         Copying, downloading and sending use the sound as you set it.</p>
       <button class="btn" id="reset" hidden>Back as shared</button>
     </div>
@@ -333,22 +336,48 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
                      return (24 + r * Math.sin(a)).toFixed(2) + ' ' + (24 - r * Math.cos(a)).toFixed(2); };
     return hi - lo < 0.004 ? 'M24 24' : 'M' + p(lo) + ' A' + r + ' ' + r + ' 0 ' + (hi - lo > 2 / 3 ? 1 : 0) + ' 1 ' + p(hi);
   }
-  function knobText(o, v) {                   // a macro 0 .. 100; an offset -50% .. +50%
+  // A knob turns its position t (0 .. 1); its setting follows by kind: 'uni' 0 .. 100, 'bip' -50% .. +50% (arc
+  // from the middle), 'hz' 0.02 .. 40 Hz on the FM-1's exponential curve, 'list' a choice (one per step).
+  function knobValue(o, t) {
+    if (o.kind === 'list') return o.choices[Math.round(t * (o.choices.length - 1))];
+    if (o.kind === 'hz') return o.min * Math.pow(2, t * Math.log2(o.max / o.min));
+    return o.min + t * (o.max - o.min);
+  }
+  function knobPos(o, v) {
+    if (o.kind === 'list') return Math.max(0, o.choices.indexOf(v)) / (o.choices.length - 1);
+    const n = +v || 0, t = o.kind === 'hz' ? Math.log2(Math.max(n, o.min) / o.min) / Math.log2(o.max / o.min)
+                                           : (n - o.min) / (o.max - o.min);
+    return Math.min(1, Math.max(0, t));
+  }
+  function knobText(o) {                      // as the FM-1 shows it
+    const v = knobValue(o, o.t);
+    if (o.kind === 'list') return v;
+    if (o.kind === 'hz') return v.toFixed(v < 10 ? 2 : 1) + ' Hz';
     const n = Math.round(v * 100);
-    return o.min < 0 ? (n > 0 ? '+' : '') + n + '%' : String(n);
+    return o.kind === 'bip' ? (n > 0 ? '+' : '') + n + '%' : String(n);
+  }
+  function knobLine(o) {
+    const v = knobValue(o, o.t);
+    return o.key + '=' + (o.kind === 'list' ? v : v.toFixed(o.kind === 'hz' ? 5 : 4));
+  }
+  function knobSnap(o, t) {                    // a list's knob sits on its choices
+    t = Math.min(1, Math.max(0, t));
+    if (o.kind !== 'list') return t;
+    const n = o.choices.length - 1;
+    return Math.round(t * n) / n;
   }
   function knobDraw(k) {
-    const o = knobs[k], t = (o.value - o.min) / (o.max - o.min), a = -0.75 * Math.PI + t * 1.5 * Math.PI;
-    o.arc.setAttribute('d', o.min < 0 ? arcBetween(0.5, t) : arcBetween(0, t));
+    const o = knobs[k], t = o.t, a = -0.75 * Math.PI + t * 1.5 * Math.PI;
+    o.arc.setAttribute('d', o.kind === 'bip' ? arcBetween(0.5, t) : arcBetween(0, t));
     o.ptr.setAttribute('x2', (24 + 13 * Math.sin(a)).toFixed(2));
     o.ptr.setAttribute('y2', (24 - 13 * Math.cos(a)).toFixed(2));
-    o.v.textContent = knobText(o, o.value);
-    o.el.setAttribute('aria-valuenow', String(Math.round(o.value * 100)));
-    o.el.setAttribute('aria-valuetext', knobText(o, o.value));
-    o.el.classList.toggle('moved', Math.round(o.value * 1000) !== Math.round(o.shared * 1000));
+    o.v.textContent = knobText(o);
+    o.el.setAttribute('aria-valuenow', String(Math.round(t * 100)));
+    o.el.setAttribute('aria-valuetext', knobText(o));
+    o.el.classList.toggle('moved', Math.round(t * 1000) !== Math.round(o.t0 * 1000));
   }
-  function addKnob(box, key, label, aria, min, max, named) {
-    const was = shared ? shared.patch.params : patch.params;
+  function addKnob(box, key, kind, label, aria, named, cls) {
+    const was = shared ? shared.patch.params : patch.params, info = cm.keys().find(q => q.key === key) || {};
     const el = document.createElement('div'), svg = svgEl('svg', { viewBox: '0 0 48 48', 'aria-hidden': 'true' });
     svg.append(svgEl('path', { class: 'trk', d: arcBetween(0, 1), fill: 'none', 'stroke-width': 4, 'stroke-linecap': 'round' }));
     const a = svgEl('path', { class: 'arc', fill: 'none', 'stroke-width': 4, 'stroke-linecap': 'round' });
@@ -358,15 +387,18 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     n.className = 'kn';
     n.textContent = label;
     v.className = 'kv';
-    el.className = 'knob' + (named ? '' : ' unnamed');
+    el.className = 'knob' + (named ? '' : ' unnamed') + (cls ? ' ' + cls : '');
     el.tabIndex = 0;
     el.setAttribute('role', 'slider');
     el.setAttribute('aria-label', aria);
-    el.setAttribute('aria-valuemin', String(Math.round(min * 100)));
-    el.setAttribute('aria-valuemax', String(Math.round(max * 100)));
+    el.setAttribute('aria-valuemin', '0');
+    el.setAttribute('aria-valuemax', '100');
     el.append(svg, n, v);
     box.append(el);
-    knobs.push({ el, arc: a, ptr, v, key, min, max, value: +patch.params[key] || 0, shared: +was[key] || 0 });
+    const o = { el, arc: a, ptr, v, key, kind, min: +info.min || 0, max: +info.max || 1, choices: info.choices || [] };
+    o.t = knobPos(o, patch.params[key]);
+    o.t0 = knobPos(o, was[key]);
+    knobs.push(o);
     knobDraw(knobs.length - 1);
     knobInput(knobs.length - 1);
   }
@@ -389,20 +421,28 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     knobs.length = 0;
     for (let k = 1; k <= 8; k++) {
       const name = String(patch.params['macro.m' + k + '_name'] || '').trim();
-      addKnob(box, 'macro.m' + k, name || 'M' + k, (name || 'M' + k) + ', macro ' + k, 0, 1, !!name);
+      addKnob(box, 'macro.m' + k, 'uni', name || 'M' + k, (name || 'M' + k) + ', macro ' + k, !!name);
     }
-    for (const l of lfosUsed()) {               // each LFO in use: its shape A's offset, its shape B's (if it has one)
-      addKnob(lbox, 'lfo' + l + '.a_offset', 'LFO ' + l + ' A', 'LFO ' + l + ' shape A offset', -0.5, 0.5, true);
-      if ((patch.params['lfo' + l + '.shape_b'] || 'NONE') !== 'NONE') {
-        addKnob(lbox, 'lfo' + l + '.b_offset', 'LFO ' + l + ' B', 'LFO ' + l + ' shape B offset', -0.5, 0.5, true);
+    // Each LFO in use, named as the matrix names it (L1 ..): its rate (synced: a note value; free: Hz), its shape
+    // A's offset, and its shape B's when it has one.
+    lfosUsed().forEach((l, i) => {
+      const L = 'lfo' + l + '.', N = 'LFO ' + l, D = 'L' + l, c = 'lfo1st' + (i % 2 ? ' even' : '');
+      if (patch.params[L + 'sync'] === 'OFF') {
+        addKnob(lbox, L + 'rate_hz', 'hz', D + ' RATE', N + ' rate, free', true, c);
+      } else {
+        addKnob(lbox, L + 'rate', 'list', D + ' RATE', N + ' rate, synced to the tempo', true, c);
       }
-    }
+      addKnob(lbox, L + 'a_offset', 'bip', D + ' A OFS', N + ' shape A offset', true);
+      if ((patch.params[L + 'shape_b'] || 'NONE') !== 'NONE') {
+        addKnob(lbox, L + 'b_offset', 'bip', D + ' B OFS', N + ' shape B offset', true);
+      }
+    });
     $('lfoWrap').hidden = !lbox.children.length;
     $('reset').hidden = !shared || shared.rec === rec;
   }
-  function knobApply() {                       // the knobs' values into the sound (and the link), then heard
+  function knobApply() {                       // the knobs' settings into the sound (and the link), then heard
     clearTimeout(knobTimer);
-    const lines = knobs.map(o => o.key + '=' + o.value.toFixed(4)).join('\n') + '\n';
+    const lines = knobs.map(knobLine).join('\n') + '\n';
     try {
       rec = cm.pack(lines, rec).record;
       patch = CM.fromRecord(cm, rec, patch.about);
@@ -416,22 +456,22 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     }
   }
   function knobInput(k) {
-    const o = knobs[k], el = o.el, span = o.max - o.min, clamp = v => Math.min(o.max, Math.max(o.min, v));
-    let y0 = 0, v0 = 0, moved = false;
+    const o = knobs[k], el = o.el, one = o.kind === 'list' ? 1 / (o.choices.length - 1) : 0.01;
+    let y0 = 0, t0 = 0, moved = false;
     el.addEventListener('pointerdown', e => {
       e.preventDefault();
       el.setPointerCapture(e.pointerId);
       el.classList.add('drag');
       y0 = e.clientY;
-      v0 = o.value;
+      t0 = o.t;
       moved = false;
       ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();   // (woken by the touch)
       if (ctx.state === 'suspended') ctx.resume();
     });
     el.addEventListener('pointermove', e => {
       if (!el.hasPointerCapture(e.pointerId)) return;
-      const v = clamp(v0 + (y0 - e.clientY) / 180 * span);
-      if (Math.abs(v - o.value) > 0.0005 * span) { o.value = v; moved = true; knobDraw(k); }
+      const t = knobSnap(o, t0 + (y0 - e.clientY) / 180);
+      if (Math.abs(t - o.t) > 0.0005) { o.t = t; moved = true; knobDraw(k); }
     });
     const end = e => {
       if (!el.hasPointerCapture(e.pointerId)) return;
@@ -441,13 +481,13 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
-    el.addEventListener('dblclick', () => { o.value = o.shared; knobDraw(k); knobApply(); });
+    el.addEventListener('dblclick', () => { o.t = o.t0; knobDraw(k); knobApply(); });
     el.addEventListener('keydown', e => {
-      const step = (e.shiftKey ? 0.1 : 0.01) * span, keys = { ArrowUp: step, ArrowRight: step, ArrowDown: -step,
-        ArrowLeft: -step, PageUp: 0.1 * span, PageDown: -0.1 * span, Home: -span, End: span };
+      const step = e.shiftKey ? Math.max(one, 0.1) : one, big = Math.max(one, 0.1), keys = { ArrowUp: step,
+        ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: big, PageDown: -big, Home: -1, End: 1 };
       if (!(e.key in keys)) return;
       e.preventDefault();
-      o.value = clamp(o.value + keys[e.key]);
+      o.t = knobSnap(o, o.t + keys[e.key]);
       knobDraw(k);
       clearTimeout(knobTimer);
       knobTimer = setTimeout(knobApply, 350);
