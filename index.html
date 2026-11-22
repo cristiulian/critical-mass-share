@@ -77,22 +77,13 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 .kbd .b { position: absolute; top: 0; height: 60%; background: var(--key-dark); border-color: var(--key-dark);
   border-radius: 0 0 5px 5px; z-index: 2; color: transparent; }
 .kbd button.on { background: var(--key-on); }
-.hearhead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
-.hearhead h2 { grid-column: 1; }
-.hearhead #reset { grid-column: 2; white-space: nowrap; }
-.hearhead .oct { grid-column: 3; justify-self: end; }
-@media (max-width: 460px) {                    /* (a phone: the three in one row, the octave's name left to the keys) */
-  .hearhead { gap: 6px; }
-  .hearhead #reset { padding: 10px; font-size: 13px; }
-  .hearhead .oct { gap: 4px; }
-  .hearhead .oct span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
-    white-space: nowrap; }
-  .hearhead .oct .btn { min-width: 36px; padding: 9px 8px; }
-}
-@media (max-width: 360px) {
-  .hearhead h2 { font-size: 15px; }
-  .hearhead #reset { padding: 9px 7px; font-size: 12px; }
-  .hearhead .oct .btn { min-width: 32px; }
+.namerow { display: flex; align-items: center; gap: 16px; }   /* (Back as shared always beside the name: a long name
+                                                                  takes a second line) */
+.namerow h1 { flex: 0 1 auto; min-width: 0; }
+.namerow #reset { flex: none; margin-top: 6px; white-space: nowrap; }
+@media (max-width: 460px) {
+  .namerow { gap: 10px; }
+  .namerow #reset { padding: 9px 10px; font-size: 13px; }
 }
 .play { display: flex; gap: 8px; align-items: stretch; }
 .play .kbd { flex: 1 1 auto; }
@@ -130,16 +121,18 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
 <main class="wrap">
   <div>
     <div class="brand"><b>Critical Mass</b> · FM-1 sound</div>
-    <h1 id="name">Opening…</h1>
+    <div class="namerow">
+      <h1 id="name">Opening…</h1>
+      <button class="btn" id="reset" hidden>Back as shared</button>
+    </div>
     <div class="tags" id="tags"></div>
     <p class="made" id="made" hidden></p>
   </div>
   <div id="msgs"></div>
 
   <section class="panel" id="hear" hidden aria-labelledby="h-hear">
-    <div class="hearhead">
+    <div class="row" style="justify-content: space-between">
       <h2 id="h-hear">Hear it</h2>
-      <button class="btn" id="reset" hidden>Back as shared</button>
       <div class="oct" aria-label="Octave">
         <button class="btn" id="down" aria-label="An octave down">−</button>
         <span id="octName">C3</span>
