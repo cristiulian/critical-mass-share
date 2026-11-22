@@ -3,7 +3,8 @@
 // The share page's keys, live: cmcore.wasm (the FM-1's synth) in an AudioWorklet, played as the FM-1's audio plays it.
 // The page posts { type: "load", wasm } (cmcore.wasm's bytes) once, then { type: "sound", rec } (a record's bytes),
 // { type: "note", note, vel } (vel 0: let go), { type: "macro", k, v } (0..1), { type: "wheel", v } (the mod wheel,
-// 0..1: kept across sounds, as the FM-1 keeps MIDI's), { type: "alloff" }; what comes before
+// 0..1: kept across sounds, as the FM-1 keeps MIDI's), { type: "bend", v } (semitones, -2..2: kept too),
+// { type: "alloff" }; what comes before
 // the engine is up waits. It answers { type: "ready" } when a sound is loaded, { type: "error", message } when not.
 // Each render quantum asks the synth for its frames at 44.1 kHz (the FM-1's rate; read across, linearly, when the
 // browser runs audio at another), at the level the emulator plays at (its MASTER as it starts, app_render's gain).
@@ -17,6 +18,7 @@ class CmLive extends AudioWorkletProcessor {
     this.x = null;
     this.loaded = false;
     this.wheel = 0;
+    this.bend = 0;
     this.waiting = [];
     this.fl = new Float32Array(CAP);
     this.fr = new Float32Array(CAP);
@@ -51,12 +53,17 @@ class CmLive extends AudioWorkletProcessor {
       this.wheel = Math.min(1, Math.max(0, +m.v || 0));
       return;
     }
+    if (m.type === "bend" && !this.loaded) {
+      this.bend = Math.min(2, Math.max(-2, +m.v || 0));
+      return;
+    }
     const x = this.x;
     if (m.type === "sound") {
       const rec = new Uint8Array(m.rec);
       new Uint8Array(x.memory.buffer, x.cm_in(), rec.length).set(rec);
       this.loaded = x.cm_live_load(rec.length) >= 0;
       x.cm_live_wheel(this.wheel);
+      x.cm_live_bend(this.bend);
       this.port.postMessage(this.loaded ? { type: "ready" } : { type: "error", message: "the sound would not load" });
     } else if (!this.loaded) {
       return;
@@ -65,6 +72,9 @@ class CmLive extends AudioWorkletProcessor {
     } else if (m.type === "wheel") {
       this.wheel = Math.min(1, Math.max(0, +m.v || 0));
       x.cm_live_wheel(this.wheel);
+    } else if (m.type === "bend") {
+      this.bend = Math.min(2, Math.max(-2, +m.v || 0));
+      x.cm_live_bend(this.bend);
     } else if (m.type === "macro") {
       x.cm_live_macro(m.k >>> 0, +m.v);
     } else if (m.type === "alloff") {
