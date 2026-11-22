@@ -77,6 +77,33 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 .kbd .b { position: absolute; top: 0; height: 60%; background: var(--key-dark); border-color: var(--key-dark);
   border-radius: 0 0 5px 5px; z-index: 2; color: transparent; }
 .kbd button.on { background: var(--key-on); }
+.hearhead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.hearhead h2 { grid-column: 1; }
+.hearhead #reset { grid-column: 2; white-space: nowrap; }
+.hearhead .oct { grid-column: 3; justify-self: end; }
+@media (max-width: 460px) {                    /* (a phone: the three in one row, the octave's name left to the keys) */
+  .hearhead { gap: 6px; }
+  .hearhead #reset { padding: 10px; font-size: 13px; }
+  .hearhead .oct { gap: 4px; }
+  .hearhead .oct span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap; }
+  .hearhead .oct .btn { min-width: 36px; padding: 9px 8px; }
+}
+@media (max-width: 360px) {
+  .hearhead h2 { font-size: 15px; }
+  .hearhead #reset { padding: 9px 7px; font-size: 12px; }
+  .hearhead .oct .btn { min-width: 32px; }
+}
+.play { display: flex; gap: 8px; align-items: stretch; }
+.play .kbd { flex: 1 1 auto; }
+.wheel { flex: 0 0 34px; position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+.wheel .wfill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); opacity: 0.35; }
+.wheel .wthumb { position: absolute; left: 3px; right: 3px; height: 4px; margin-bottom: -2px; border-radius: 2px;
+  background: var(--accent); }
+.wheel span { position: absolute; left: 0; right: 0; top: 6px; text-align: center; font: 600 10px/1 var(--display);
+  letter-spacing: 0.06em; color: var(--muted); }
+.wheel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .oct { display: flex; align-items: center; gap: 8px; }
 .oct span { font: 500 13px/1 var(--mono); color: var(--muted); min-width: 64px; text-align: center; }
 .oct .btn { min-width: 44px; padding: 10px; }
@@ -110,8 +137,9 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
   <div id="msgs"></div>
 
   <section class="panel" id="hear" hidden aria-labelledby="h-hear">
-    <div class="row" style="justify-content: space-between">
+    <div class="hearhead">
       <h2 id="h-hear">Hear it</h2>
+      <button class="btn" id="reset" hidden>Back as shared</button>
       <div class="oct" aria-label="Octave">
         <button class="btn" id="down" aria-label="An octave down">−</button>
         <span id="octName">C3</span>
@@ -119,15 +147,16 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
       </div>
     </div>
     <div class="knobs" id="knobs" role="group" aria-label="The sound's eight macro knobs"></div>
-    <div class="row">
-      <p class="hint" style="flex: 1 1 200px">Drag a macro knob up or down, as you play or before; double-tap one to put
-        it back. Copying, downloading and sending use the sound as you set it.</p>
-      <button class="btn" id="reset" hidden>Back as shared</button>
+    <div class="play">
+      <div class="wheel" id="wheel" tabindex="0" role="slider" aria-label="Mod wheel" aria-valuemin="0"
+           aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 percent">
+        <div class="wfill" id="wfill"></div><div class="wthumb" id="wthumb"></div><span>MOD</span>
+      </div>
+      <div class="kbd" id="kbd" role="group" aria-label="Keyboard: hold a key to play the sound"></div>
     </div>
-    <div class="kbd" id="kbd" role="group" aria-label="Keyboard: hold a key to play the sound"></div>
     <p class="hint" id="hearHint">Hold a key, or several: the FM-1's own synth plays them live in your browser, with
-      every setting of the sound. On a computer the letters play too: Q to I and A to J the white keys, 1 to 0 the
-      black ones, Z and X the octave.</p>
+      every setting of the sound. MOD is the mod wheel: drag it up or down (double-tap: back to 0). On a computer the
+      letters play too: Q to I and A to J the white keys, 1 to 0 the black ones, Z and X the octave.</p>
   </section>
 
   <section class="panel" id="keep" hidden aria-labelledby="h-keep">
@@ -388,6 +417,43 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
   document.addEventListener('keyup', e => letGo('k' + e.code));
   window.addEventListener('blur', letAllGo);
   document.addEventListener('visibilitychange', () => { if (document.hidden) letAllGo(); });
+  // The mod wheel (the FM-1's: MIDI's CC 1): dragged up or down, the whole height its whole range; it stays where it
+  // is left (a double tap: 0). Not a setting of the sound: not in the link.
+  let wheel = 0;
+  function wheelSet(v) {
+    wheel = Math.min(1, Math.max(0, v));
+    $('wfill').style.height = (wheel * 100) + '%';
+    $('wthumb').style.bottom = 'calc(' + (wheel * 100) + '% - ' + (wheel * 4 - 2) + 'px)';
+    const w = $('wheel');
+    w.setAttribute('aria-valuenow', String(Math.round(wheel * 100)));
+    w.setAttribute('aria-valuetext', Math.round(wheel * 100) + ' percent');
+    post({ type: 'wheel', v: wheel });
+  }
+  {
+    const w = $('wheel');
+    let y0 = 0, v0 = 0;
+    w.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      w.setPointerCapture(e.pointerId);
+      y0 = e.clientY;
+      v0 = wheel;
+      startLive();
+    });
+    w.addEventListener('pointermove', e => {
+      if (w.hasPointerCapture(e.pointerId)) wheelSet(v0 + (y0 - e.clientY) / w.clientHeight);
+    });
+    w.addEventListener('pointerup', e => { if (w.hasPointerCapture(e.pointerId)) w.releasePointerCapture(e.pointerId); });
+    w.addEventListener('dblclick', () => wheelSet(0));
+    w.addEventListener('keydown', e => {
+      const keys = { ArrowUp: 0.02, ArrowRight: 0.02, ArrowDown: -0.02, ArrowLeft: -0.02, PageUp: 0.1, PageDown: -0.1,
+                     Home: -1, End: 1 };
+      if (!(e.key in keys)) return;
+      e.preventDefault();
+      startLive();
+      wheelSet(wheel + keys[e.key]);
+    });
+    wheelSet(0);
+  }
   $('down').onclick = () => { octave = Math.max(1, octave - 1); drawKeys(); };
   $('up').onclick = () => { octave = Math.min(5, octave + 1); drawKeys(); };
 
