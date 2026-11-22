@@ -59,8 +59,6 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 /* the sound's eight macro knobs (as the FM-1's home page names them): drag up or down, arrows, a double tap resets */
 .knobs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 6px; }
 @media (min-width: 560px) { .knobs { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
-.knob.lfo1st { grid-column-start: 1; }         /* each LFO from a row's start; two to a row when it is wide */
-@media (min-width: 560px) { .knob.lfo1st.even { grid-column-start: 5; } }
 .knob { display: grid; justify-items: center; gap: 3px; padding: 4px 0 2px; border-radius: 10px; cursor: ns-resize;
   touch-action: none; user-select: none; -webkit-user-select: none; min-width: 0; }
 .knob svg { width: 100%; max-width: 58px; aspect-ratio: 1; display: block; }
@@ -71,8 +69,6 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 .knob.unnamed .kn { color: var(--muted); }
 .knob.moved .kv { color: var(--accent); }
 .knob.drag { background: var(--bg); }
-.sublabel { font: 600 12px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
-  margin: 4px 0 8px; }
 .kbd { position: relative; display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); height: 150px;
   user-select: none; -webkit-user-select: none; touch-action: none; }
 .kbd button { font: 500 10px/1 var(--mono); color: var(--muted); border: 1px solid var(--line); cursor: pointer;
@@ -123,19 +119,15 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
       </div>
     </div>
     <div class="knobs" id="knobs" role="group" aria-label="The sound's eight macro knobs"></div>
-    <div id="lfoWrap" hidden>
-      <div class="sublabel">LFO rates and offsets</div>
-      <div class="knobs" id="lfoKnobs" role="group" aria-label="The rates and offsets of the LFOs the sound uses"></div>
-    </div>
     <div class="row">
-      <p class="hint" style="flex: 1 1 200px">Drag a knob up or down to change the sound (an LFO's rate: a note value of
-        the tempo when it is synced, else Hz; its offsets: where each shape's cycle starts); double-tap one to put it
-        back.
-        Copying, downloading and sending use the sound as you set it.</p>
+      <p class="hint" style="flex: 1 1 200px">Drag a macro knob up or down, as you play or before; double-tap one to put
+        it back. Copying, downloading and sending use the sound as you set it.</p>
       <button class="btn" id="reset" hidden>Back as shared</button>
     </div>
-    <div class="kbd" id="kbd" role="group" aria-label="Keyboard: tap a key to play the sound"></div>
-    <p class="hint" id="hearHint">Tap a key. Each note is played by the FM-1's own synth, here in your browser.</p>
+    <div class="kbd" id="kbd" role="group" aria-label="Keyboard: hold a key to play the sound"></div>
+    <p class="hint" id="hearHint">Hold a key, or several: the FM-1's own synth plays them live in your browser, with
+      every setting of the sound. On a computer the letters play too: Q to I and A to J the white keys, 1 to 0 the
+      black ones, Z and X the octave.</p>
   </section>
 
   <section class="panel" id="keep" hidden aria-labelledby="h-keep">
@@ -180,9 +172,8 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
   'use strict';
   const $ = id => document.getElementById(id);
   const NOTE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  let cm, rec, patch, octave = 3, ctx, device, access, shared = null, lastNote = 60, knobTimer = 0;
+  let cm, rec, patch, octave = 3, ctx, device, access, shared = null, knobTimer = 0;
   const knobs = [];
-  const cache = new Map();
 
   function say(text, kind) {
     const d = document.createElement('div');
@@ -225,6 +216,15 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     $('made').hidden = !from || from === name;
     $('made').textContent = from ? 'Made from the factory preset ' + from : '';
     $('code').textContent = CM.codeOf(rec);
+    listSettings();
+    $('hear').hidden = $('keep').hidden = false;
+    $('empty').hidden = true;
+    if (!shared) shared = { patch: p, rec: record, hash: location.hash };
+    buildKnobs();
+    drawKeys();
+    if (live.starting) liveSound();
+  }
+  function listSettings() {                    // every setting the sound has, as the FM-1 shows it
     const dl = $('params');
     dl.replaceChildren();
     const shown = cm.show(rec);
@@ -243,13 +243,6 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
       dd.textContent = v;
       dl.append(dt, dd);
     }
-    $('hear').hidden = $('keep').hidden = false;
-    $('empty').hidden = true;
-    if (!shared) shared = { patch: p, rec: record, hash: location.hash };
-    buildKnobs();
-    cache.clear();
-    drawKeys();
-    setTimeout(() => { try { voice(60); voice(48); } catch (e) { /* (heard when tapped) */ } }, 400);
   }
 
   function open(text) {
@@ -264,6 +257,7 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
 
   // ---------------------------------------------------------------------------------------- the keyboard ---
   const WHITE = [0, 2, 4, 5, 7, 9, 11];
+  const W_OFS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24], B_OFS = [1, 3, 6, 8, 10, 13, 15, 18, 20, 22];
   function drawKeys() {
     const k = $('kbd');
     k.replaceChildren();
@@ -287,191 +281,202 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
       }
       k.append(b);
     }
+    for (const n of live.held.values()) light(n);
   }
-  function voice(note) {                       // the note as the FM-1 plays it (rendered once, kept)
-    if (!cache.has(note)) cache.set(note, cm.render(rec, note, 100, 0.9, 2.6));
-    return cache.get(note);
+
+  // -------------------------------------------------------------------------------------- playing live ---
+  // The FM-1's synth in an AudioWorklet (cmlive.js), as the FM-1's audio plays it: the sound loaded as the FM-1
+  // loads it, each key a note held until it is let go (the sound's voices, mono or poly, glide, legato, envelopes,
+  // LFOs, steppers, matrix and effects), velocity 100 (the FM-1's keys, TOUCH off), 120 BPM, the emulator's level.
+  const live = { node: null, starting: null, q: [], held: new Map() };   // held: who (a pointer, a key) -> its note
+  function post(m) {
+    if (live.node) live.node.port.postMessage(m);
+    else live.q.push(m);
   }
-  function play(note, key) {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();   // (made and woken by the tap itself)
+  function liveSound() {                       // the sound as it is now into the synth (from the start: silence)
+    live.q = live.q.filter(m => m.type !== 'sound');
+    post({ type: 'sound', rec: rec.slice() });
+  }
+  function startLive() {                       // (from a tap or a key: browsers start audio only then)
+    if (live.starting) {
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+      return live.starting;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    try {
+      ctx = new AC({ sampleRate: 44100, latencyHint: 'interactive' });   // (the FM-1's rate)
+    } catch (e) {
+      ctx = new AC();
+    }
     if (ctx.state === 'suspended') ctx.resume();
-    lastNote = note;
-    key = key || $('kbd').querySelector('[data-note="' + note + '"]') || document.createElement('i');
-    key.classList.add('on');                   // (lit at once; a note not heard yet takes a moment to make)
-    setTimeout(() => {
-      try {
-        const v = voice(note), buf = ctx.createBuffer(2, v.l.length, cm.rate), s = ctx.createBufferSource();
-        buf.copyToChannel(v.l, 0);
-        buf.copyToChannel(v.r, 1);
-        s.buffer = buf;
-        s.connect(ctx.destination);
-        s.start();
-      } catch (e) {
-        say('This sound could not be played here: ' + e.message, 'bad');
-      }
-      setTimeout(() => key.classList.remove('on'), 220);
-    }, 0);
+    live.starting = (async () => {
+      if (!ctx.audioWorklet) throw new Error('this browser cannot run the synth live (it needs AudioWorklet)');
+      const [wasm] = await Promise.all([fetch('cmcore.wasm').then(r => r.arrayBuffer()),
+                                        ctx.audioWorklet.addModule('cmlive.js')]);
+      const node = new AudioWorkletNode(ctx, 'cm-live', { numberOfInputs: 0, outputChannelCount: [2] });
+      node.port.onmessage = e => {
+        if (e.data.type === 'error') say('This sound could not be played here: ' + e.data.message, 'bad');
+      };
+      node.connect(ctx.destination);
+      node.port.postMessage({ type: 'load', wasm }, [wasm]);
+      if (!live.q.some(m => m.type === 'sound')) live.q.unshift({ type: 'sound', rec: rec.slice() });
+      live.node = node;
+      for (const m of live.q.splice(0)) node.port.postMessage(m);
+    })().catch(e => say('This sound could not be played here: ' + e.message, 'bad'));
+    return live.starting;
   }
-  $('kbd').addEventListener('pointerdown', e => {
+  const holds = n => [...live.held.values()].includes(n);
+  function light(note) {
+    const k = $('kbd').querySelector('[data-note="' + note + '"]');
+    if (k) k.classList.toggle('on', holds(note));
+  }
+  function hold(who, note) {                   // who now holds note; its note before let go after (legato, glide)
+    const old = live.held.get(who);
+    if (old === note) return;
+    startLive();
+    if (holds(note)) post({ type: 'note', note, vel: 0 });   // (held twice: struck again, as the FM-1 does)
+    live.held.set(who, note);
+    post({ type: 'note', note, vel: 100 });
+    light(note);
+    if (old !== undefined && !holds(old)) post({ type: 'note', note: old, vel: 0 });
+    if (old !== undefined) light(old);
+  }
+  function letGo(who) {
+    const note = live.held.get(who);
+    if (note === undefined) return;
+    live.held.delete(who);
+    if (!holds(note)) post({ type: 'note', note, vel: 0 });
+    light(note);
+  }
+  function letAllGo() { for (const who of [...live.held.keys()]) letGo(who); }
+  const kbd = $('kbd'), keyAt = (x, y) => { const e = document.elementFromPoint(x, y); return e && e.closest('#kbd button'); };
+  kbd.addEventListener('pointerdown', e => {
     const b = e.target.closest('button');
-    if (b) { e.preventDefault(); play(+b.dataset.note, b); }
+    if (!b) return;
+    e.preventDefault();
+    kbd.setPointerCapture(e.pointerId);
+    hold('p' + e.pointerId, +b.dataset.note);
   });
-  $('kbd').addEventListener('keydown', e => {
+  kbd.addEventListener('pointermove', e => {   // (slid along the keys: each the next note, legato)
+    if (!live.held.has('p' + e.pointerId)) return;
+    const b = keyAt(e.clientX, e.clientY);
+    if (b) hold('p' + e.pointerId, +b.dataset.note);
+  });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) kbd.addEventListener(t, e => letGo('p' + e.pointerId));
+  kbd.addEventListener('keydown', e => {
     const b = e.target.closest('button');
-    if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); play(+b.dataset.note, b); }
+    if (!b || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    if (!e.repeat) hold('f' + e.key, +b.dataset.note);
   });
+  kbd.addEventListener('keyup', e => letGo('f' + e.key));
+  // The computer's keys, as the emulator's: Q .. I and A .. J the white keys, 1 .. 0 the black ones, Z and X the octave.
+  const LETTERS = {};
+  'QWERTYUIASDFGHJ'.split('').forEach((c, i) => { LETTERS['Key' + c] = W_OFS[i]; });
+  '1234567890'.split('').forEach((c, i) => { LETTERS['Digit' + c] = B_OFS[i]; });
+  document.addEventListener('keydown', e => {
+    const t = e.target;
+    if (e.ctrlKey || e.metaKey || e.altKey || $('hear').hidden ||
+        (t && (t.closest('input, textarea, select, [contenteditable]') || t.closest('[role="slider"]')))) return;
+    if (e.code === 'KeyZ' || e.code === 'KeyX') {
+      if (!e.repeat) (e.code === 'KeyZ' ? $('down') : $('up')).click();
+    } else if (e.code in LETTERS) {
+      e.preventDefault();
+      if (!e.repeat) hold('k' + e.code, 12 * (octave + 1) + LETTERS[e.code]);
+    }
+  });
+  document.addEventListener('keyup', e => letGo('k' + e.code));
+  window.addEventListener('blur', letAllGo);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) letAllGo(); });
   $('down').onclick = () => { octave = Math.max(1, octave - 1); drawKeys(); };
   $('up').onclick = () => { octave = Math.min(5, octave + 1); drawKeys(); };
 
   // -------------------------------------------------------------------------------------- the knobs ---
+  // The eight macros, as the FM-1's knobs turn them: heard at once on the notes held; let go, the sound, the link,
+  // the code and the file have the new value.
   const SVGNS = 'http://www.w3.org/2000/svg';
   function svgEl(tag, attrs) {
     const e = document.createElementNS(SVGNS, tag);
     for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
     return e;
   }
-  function arcBetween(t0, t1) {                // the track's arc from t0 to t1 (0..1 each), clockwise
-    const lo = Math.min(t0, t1), hi = Math.max(t0, t1), r = 19;
-    const p = t => { const a = -0.75 * Math.PI + t * 1.5 * Math.PI;
-                     return (24 + r * Math.sin(a)).toFixed(2) + ' ' + (24 - r * Math.cos(a)).toFixed(2); };
-    return hi - lo < 0.004 ? 'M24 24' : 'M' + p(lo) + ' A' + r + ' ' + r + ' 0 ' + (hi - lo > 2 / 3 ? 1 : 0) + ' 1 ' + p(hi);
-  }
-  // A knob turns its position t (0 .. 1); its setting follows by kind: 'uni' 0 .. 100, 'bip' -50% .. +50% (arc
-  // from the middle), 'hz' 0.02 .. 40 Hz on the FM-1's exponential curve, 'list' a choice (one per step).
-  function knobValue(o, t) {
-    if (o.kind === 'list') return o.choices[Math.round(t * (o.choices.length - 1))];
-    if (o.kind === 'hz') return o.min * Math.pow(2, t * Math.log2(o.max / o.min));
-    return o.min + t * (o.max - o.min);
-  }
-  function knobPos(o, v) {
-    if (o.kind === 'list') return Math.max(0, o.choices.indexOf(v)) / (o.choices.length - 1);
-    const n = +v || 0, t = o.kind === 'hz' ? Math.log2(Math.max(n, o.min) / o.min) / Math.log2(o.max / o.min)
-                                           : (n - o.min) / (o.max - o.min);
-    return Math.min(1, Math.max(0, t));
-  }
-  function knobText(o) {                      // as the FM-1 shows it
-    const v = knobValue(o, o.t);
-    if (o.kind === 'list') return v;
-    if (o.kind === 'hz') return v.toFixed(v < 10 ? 2 : 1) + ' Hz';
-    const n = Math.round(v * 100);
-    return o.kind === 'bip' ? (n > 0 ? '+' : '') + n + '%' : String(n);
-  }
-  function knobLine(o) {
-    const v = knobValue(o, o.t);
-    return o.key + '=' + (o.kind === 'list' ? v : v.toFixed(o.kind === 'hz' ? 5 : 4));
-  }
-  function knobSnap(o, t) {                    // a list's knob sits on its choices
-    t = Math.min(1, Math.max(0, t));
-    if (o.kind !== 'list') return t;
-    const n = o.choices.length - 1;
-    return Math.round(t * n) / n;
+  function arc(t) {                            // 270 degrees from bottom left, clockwise, to t (0..1)
+    const r = 19, a0 = -0.75 * Math.PI, a1 = a0 + t * 1.5 * Math.PI;
+    const p = a => (24 + r * Math.sin(a)).toFixed(2) + ' ' + (24 - r * Math.cos(a)).toFixed(2);
+    return t < 0.004 ? 'M24 24' : 'M' + p(a0) + ' A' + r + ' ' + r + ' 0 ' + (t > 2 / 3 ? 1 : 0) + ' 1 ' + p(a1);
   }
   function knobDraw(k) {
-    const o = knobs[k], t = o.t, a = -0.75 * Math.PI + t * 1.5 * Math.PI;
-    o.arc.setAttribute('d', o.kind === 'bip' ? arcBetween(0.5, t) : arcBetween(0, t));
+    const o = knobs[k], t = o.value, a = -0.75 * Math.PI + t * 1.5 * Math.PI;
+    o.arc.setAttribute('d', arc(t));
     o.ptr.setAttribute('x2', (24 + 13 * Math.sin(a)).toFixed(2));
     o.ptr.setAttribute('y2', (24 - 13 * Math.cos(a)).toFixed(2));
-    o.v.textContent = knobText(o);
+    o.v.textContent = Math.round(t * 100);
     o.el.setAttribute('aria-valuenow', String(Math.round(t * 100)));
-    o.el.setAttribute('aria-valuetext', knobText(o));
-    o.el.classList.toggle('moved', Math.round(t * 1000) !== Math.round(o.t0 * 1000));
-  }
-  function addKnob(box, key, kind, label, aria, named, cls) {
-    const was = shared ? shared.patch.params : patch.params, info = cm.keys().find(q => q.key === key) || {};
-    const el = document.createElement('div'), svg = svgEl('svg', { viewBox: '0 0 48 48', 'aria-hidden': 'true' });
-    svg.append(svgEl('path', { class: 'trk', d: arcBetween(0, 1), fill: 'none', 'stroke-width': 4, 'stroke-linecap': 'round' }));
-    const a = svgEl('path', { class: 'arc', fill: 'none', 'stroke-width': 4, 'stroke-linecap': 'round' });
-    const ptr = svgEl('line', { class: 'ptr', x1: 24, y1: 24, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-    svg.append(a, ptr);
-    const n = document.createElement('div'), v = document.createElement('div');
-    n.className = 'kn';
-    n.textContent = label;
-    v.className = 'kv';
-    el.className = 'knob' + (named ? '' : ' unnamed') + (cls ? ' ' + cls : '');
-    el.tabIndex = 0;
-    el.setAttribute('role', 'slider');
-    el.setAttribute('aria-label', aria);
-    el.setAttribute('aria-valuemin', '0');
-    el.setAttribute('aria-valuemax', '100');
-    el.append(svg, n, v);
-    box.append(el);
-    const o = { el, arc: a, ptr, v, key, kind, min: +info.min || 0, max: +info.max || 1, choices: info.choices || [] };
-    o.t = knobPos(o, patch.params[key]);
-    o.t0 = knobPos(o, was[key]);
-    knobs.push(o);
-    knobDraw(knobs.length - 1);
-    knobInput(knobs.length - 1);
-  }
-  function lfosUsed() {                        // the LFOs the matrix takes (as a source, or a via, of a slot in use)
-    const used = new Set();
-    for (let s = 1; s <= 16; s++) {
-      const dst = patch.params['slot' + s + '.dest'];
-      if (!dst || dst === 'OFF') continue;
-      for (const f of ['source', 'via']) {
-        const m = /^LFO([1-4])$/.exec(patch.params['slot' + s + '.' + f] || '');
-        if (m) used.add(+m[1]);
-      }
-    }
-    return [...used].sort();
+    o.el.classList.toggle('moved', Math.round(t * 1000) !== Math.round(o.shared * 1000));
   }
   function buildKnobs() {
-    const box = $('knobs'), lbox = $('lfoKnobs');
+    const box = $('knobs'), was = shared ? shared.patch.params : patch.params;
     box.replaceChildren();
-    lbox.replaceChildren();
     knobs.length = 0;
-    for (let k = 1; k <= 8; k++) {
-      const name = String(patch.params['macro.m' + k + '_name'] || '').trim();
-      addKnob(box, 'macro.m' + k, 'uni', name || 'M' + k, (name || 'M' + k) + ', macro ' + k, !!name);
+    for (let k = 0; k < 8; k++) {
+      const key = 'macro.m' + (k + 1), name = String(patch.params[key + '_name'] || '').trim();
+      const el = document.createElement('div'), svg = svgEl('svg', { viewBox: '0 0 48 48', 'aria-hidden': 'true' });
+      svg.append(svgEl('path', { class: 'trk', d: arc(1), fill: 'none', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+      const a = svgEl('path', { class: 'arc', fill: 'none', 'stroke-width': 4, 'stroke-linecap': 'round' });
+      const ptr = svgEl('line', { class: 'ptr', x1: 24, y1: 24, 'stroke-width': 2.5, 'stroke-linecap': 'round' });
+      svg.append(a, ptr);
+      const n = document.createElement('div'), v = document.createElement('div');
+      n.className = 'kn';
+      n.textContent = name || 'M' + (k + 1);
+      v.className = 'kv';
+      el.className = 'knob' + (name ? '' : ' unnamed');
+      el.tabIndex = 0;
+      el.setAttribute('role', 'slider');
+      el.setAttribute('aria-label', (name || 'M' + (k + 1)) + ', macro ' + (k + 1));
+      el.setAttribute('aria-valuemin', '0');
+      el.setAttribute('aria-valuemax', '100');
+      el.append(svg, n, v);
+      box.append(el);
+      knobs.push({ el, arc: a, ptr, v, value: +patch.params[key] || 0, shared: +was[key] || 0 });
+      knobDraw(k);
+      knobInput(k);
     }
-    // Each LFO in use, named as the matrix names it (L1 ..): its rate (synced: a note value; free: Hz), its shape
-    // A's offset, and its shape B's when it has one.
-    lfosUsed().forEach((l, i) => {
-      const L = 'lfo' + l + '.', N = 'LFO ' + l, D = 'L' + l, c = 'lfo1st' + (i % 2 ? ' even' : '');
-      if (patch.params[L + 'sync'] === 'OFF') {
-        addKnob(lbox, L + 'rate_hz', 'hz', D + ' RATE', N + ' rate, free', true, c);
-      } else {
-        addKnob(lbox, L + 'rate', 'list', D + ' RATE', N + ' rate, synced to the tempo', true, c);
-      }
-      addKnob(lbox, L + 'a_offset', 'bip', D + ' A OFS', N + ' shape A offset', true);
-      if ((patch.params[L + 'shape_b'] || 'NONE') !== 'NONE') {
-        addKnob(lbox, L + 'b_offset', 'bip', D + ' B OFS', N + ' shape B offset', true);
-      }
-    });
-    $('lfoWrap').hidden = !lbox.children.length;
     $('reset').hidden = !shared || shared.rec === rec;
   }
-  function knobApply() {                       // the knobs' settings into the sound (and the link), then heard
+  function knobApply() {                       // the knobs' values into the sound (and the link)
     clearTimeout(knobTimer);
-    const lines = knobs.map(knobLine).join('\n') + '\n';
+    const lines = knobs.map((o, k) => 'macro.m' + (k + 1) + '=' + o.value.toFixed(4)).join('\n') + '\n';
     try {
       rec = cm.pack(lines, rec).record;
       patch = CM.fromRecord(cm, rec, patch.about);
       $('code').textContent = CM.codeOf(rec);
       history.replaceState(null, '', '#' + cm.share(rec));
-      cache.clear();
+      listSettings();
       $('reset').hidden = false;
-      play(lastNote, null);
     } catch (e) {
       say('The knob could not be turned: ' + e.message, 'bad');
     }
   }
   function knobInput(k) {
-    const o = knobs[k], el = o.el, one = o.kind === 'list' ? 1 / (o.choices.length - 1) : 0.01;
-    let y0 = 0, t0 = 0, moved = false;
+    const o = knobs[k], el = o.el, set = v => {
+      o.value = Math.min(1, Math.max(0, v));
+      knobDraw(k);
+      post({ type: 'macro', k, v: o.value });  // (heard now)
+    };
+    let y0 = 0, v0 = 0, moved = false;
     el.addEventListener('pointerdown', e => {
       e.preventDefault();
       el.setPointerCapture(e.pointerId);
       el.classList.add('drag');
       y0 = e.clientY;
-      t0 = o.t;
+      v0 = o.value;
       moved = false;
-      ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();   // (woken by the touch)
-      if (ctx.state === 'suspended') ctx.resume();
+      startLive();
     });
     el.addEventListener('pointermove', e => {
       if (!el.hasPointerCapture(e.pointerId)) return;
-      const t = knobSnap(o, t0 + (y0 - e.clientY) / 180);
-      if (Math.abs(t - o.t) > 0.0005) { o.t = t; moved = true; knobDraw(k); }
+      const v = Math.min(1, Math.max(0, v0 + (y0 - e.clientY) / 180));
+      if (Math.abs(v - o.value) > 0.0005) { set(v); moved = true; }
     });
     const end = e => {
       if (!el.hasPointerCapture(e.pointerId)) return;
@@ -481,14 +486,13 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
-    el.addEventListener('dblclick', () => { o.t = o.t0; knobDraw(k); knobApply(); });
+    el.addEventListener('dblclick', () => { set(o.shared); knobApply(); });
     el.addEventListener('keydown', e => {
-      const step = e.shiftKey ? Math.max(one, 0.1) : one, big = Math.max(one, 0.1), keys = { ArrowUp: step,
-        ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: big, PageDown: -big, Home: -1, End: 1 };
+      const keys = { ArrowUp: 0.01, ArrowRight: 0.01, ArrowDown: -0.01, ArrowLeft: -0.01, PageUp: 0.1, PageDown: -0.1,
+                     Home: -1, End: 1 };
       if (!(e.key in keys)) return;
       e.preventDefault();
-      o.t = knobSnap(o, o.t + keys[e.key]);
-      knobDraw(k);
+      set(o.value + keys[e.key] * (e.shiftKey && e.key.startsWith('Arrow') ? 10 : 1));
       clearTimeout(knobTimer);
       knobTimer = setTimeout(knobApply, 350);
     });
