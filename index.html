@@ -87,17 +87,29 @@ h2 { font: 700 18px/1.15 var(--display); letter-spacing: 0.03em; margin: 0; }
 }
 .play { display: flex; gap: 8px; align-items: stretch; }
 .play .kbd { flex: 1 1 auto; }
+/* BEND and MOD: upright strips left of the keys; on a phone, lying flat side by side above them (right: up). Each
+   draws from --a .. --b (its fill, fractions of its length from the bottom, or the left) and --f (its thumb). */
 .wheel { flex: 0 0 34px; position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 8px;
-  background: var(--bg); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
-.wheel .wfill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); opacity: 0.35; }
-.wheel .wthumb { position: absolute; left: 3px; right: 3px; height: 4px; margin-bottom: -2px; border-radius: 2px;
-  background: var(--accent); }
+  background: var(--bg); cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none;
+  --a: 0; --b: 0; --f: 0; }
+.wheel .wfill { position: absolute; left: 0; right: 0; bottom: calc(var(--a) * 100%);
+  height: calc((var(--b) - var(--a)) * 100%); background: var(--accent); opacity: 0.35; }
+.wheel .wthumb { position: absolute; left: 3px; right: 3px; height: 4px; bottom: calc(var(--f) * (100% - 4px));
+  border-radius: 2px; background: var(--accent); }
 .wheel span { position: absolute; left: 0; right: 0; top: 6px; text-align: center; font: 600 10px/1 var(--display);
   letter-spacing: 0.06em; color: var(--muted); }
 .wheel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .bend .bmid { position: absolute; left: 6px; right: 6px; top: 50%; height: 1px; background: var(--line); }
-.bend .wfill { bottom: auto; top: 50%; height: 0; }
-@media (max-width: 460px) { .play { gap: 6px; } .wheel { flex-basis: 30px; } }
+@media (max-width: 460px) {
+  .play { flex-wrap: wrap; gap: 8px 6px; }
+  .play .kbd { flex: 1 1 100%; }
+  .wheel { flex: 1 1 0; height: 44px; cursor: ew-resize; }
+  .wheel .wfill { top: 0; bottom: 0; left: calc(var(--a) * 100%); width: calc((var(--b) - var(--a)) * 100%);
+    height: auto; }
+  .wheel .wthumb { top: 3px; bottom: 3px; left: calc(var(--f) * (100% - 4px)); width: 4px; height: auto; right: auto; }
+  .wheel span { top: 50%; left: 10px; right: auto; transform: translateY(-50%); }
+  .bend .bmid { top: 6px; bottom: 6px; left: 50%; width: 1px; height: auto; right: auto; }
+}
 .oct { display: flex; align-items: center; gap: 8px; }
 .oct span { font: 500 13px/1 var(--mono); color: var(--muted); min-width: 64px; text-align: center; }
 .oct .btn { min-width: 44px; padding: 10px; }
@@ -146,18 +158,19 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     <div class="play">
       <div class="wheel bend" id="bend" tabindex="0" role="slider" aria-label="Pitch bend" aria-valuemin="-2"
            aria-valuemax="2" aria-valuenow="0" aria-valuetext="0 semitones">
-        <div class="bmid"></div><div class="wfill" id="bfill"></div><div class="wthumb" id="bthumb"></div><span>BEND</span>
+        <div class="bmid"></div><div class="wfill"></div><div class="wthumb"></div><span>BEND</span>
       </div>
       <div class="wheel" id="wheel" tabindex="0" role="slider" aria-label="Mod wheel" aria-valuemin="0"
            aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 percent">
-        <div class="wfill" id="wfill"></div><div class="wthumb" id="wthumb"></div><span>MOD</span>
+        <div class="wfill"></div><div class="wthumb"></div><span>MOD</span>
       </div>
       <div class="kbd" id="kbd" role="group" aria-label="Keyboard: hold a key to play the sound"></div>
     </div>
     <p class="hint" id="hearHint">Hold a key, or several: the FM-1's own synth plays them live in your browser, with
       every setting of the sound. BEND bends the pitch up to two semitones up or down (drag it; let go, it springs
-      back); MOD is the mod wheel (drag it; it stays; double-tap: back to 0). On a computer the letters play too: Q to
-      I and A to J the white keys, 1 to 0 the black ones, Z and X the octave.</p>
+      back); MOD is the mod wheel (drag it; it stays; double-tap: back to 0). On a phone they lie above the keys:
+      drag them right for up. On a computer the letters play too: Q to I and A to J the white keys, 1 to 0 the black
+      ones, Z and X the octave.</p>
   </section>
 
   <section class="panel" id="keep" hidden aria-labelledby="h-keep">
@@ -418,30 +431,35 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
   document.addEventListener('keyup', e => letGo('k' + e.code));
   window.addEventListener('blur', letAllGo);
   document.addEventListener('visibilitychange', () => { if (document.hidden) letAllGo(); });
-  // The mod wheel (the FM-1's: MIDI's CC 1): dragged up or down, the whole height its whole range; it stays where it
-  // is left (a double tap: 0). Not a setting of the sound: not in the link.
+  // How far a strip was dragged, a share of its length: up (upright), or right (lying flat, on a phone).
+  function stripMove(w, e, x0, y0) {
+    return w.clientWidth > w.clientHeight ? (e.clientX - x0) / w.clientWidth : (y0 - e.clientY) / w.clientHeight;
+  }
+  // The mod wheel (the FM-1's: MIDI's CC 1): dragged along, its whole length its whole range; it stays where it is
+  // left (a double tap: 0). Not a setting of the sound: not in the link.
   let wheel = 0;
   function wheelSet(v) {
     wheel = Math.min(1, Math.max(0, v));
-    $('wfill').style.height = (wheel * 100) + '%';
-    $('wthumb').style.bottom = 'calc(' + (wheel * 100) + '% - ' + (wheel * 4 - 2) + 'px)';
     const w = $('wheel');
+    w.style.setProperty('--b', wheel);
+    w.style.setProperty('--f', wheel);
     w.setAttribute('aria-valuenow', String(Math.round(wheel * 100)));
     w.setAttribute('aria-valuetext', Math.round(wheel * 100) + ' percent');
     post({ type: 'wheel', v: wheel });
   }
   {
     const w = $('wheel');
-    let y0 = 0, v0 = 0;
+    let x0 = 0, y0 = 0, v0 = 0;
     w.addEventListener('pointerdown', e => {
       e.preventDefault();
       w.setPointerCapture(e.pointerId);
+      x0 = e.clientX;
       y0 = e.clientY;
       v0 = wheel;
       startLive();
     });
     w.addEventListener('pointermove', e => {
-      if (w.hasPointerCapture(e.pointerId)) wheelSet(v0 + (y0 - e.clientY) / w.clientHeight);
+      if (w.hasPointerCapture(e.pointerId)) wheelSet(v0 + stripMove(w, e, x0, y0));
     });
     w.addEventListener('pointerup', e => { if (w.hasPointerCapture(e.pointerId)) w.releasePointerCapture(e.pointerId); });
     w.addEventListener('dblclick', () => wheelSet(0));
@@ -455,30 +473,31 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     });
     wheelSet(0);
   }
-  // The pitch bend (the FM-1's: MIDI's, -2 .. +2 semitones): dragged up or down from where it is touched, half the
-  // height a whole bend; let go, it springs back to the middle. Arrow keys bend while held.
+  // The pitch bend (the FM-1's: MIDI's, -2 .. +2 semitones): dragged along from where it is touched, half its length a
+  // whole bend; let go, it springs back to the middle. Arrow keys bend while held.
   let bend = 0;
   function bendSet(v) {                        // -1 .. 1 (x 2 semitones)
     bend = Math.min(1, Math.max(-1, v));
-    const f = $('bfill'), frac = (bend + 1) / 2, st = Math.round(bend * 200) / 100;
-    f.style.top = (bend > 0 ? 50 - bend * 50 : 50) + '%';
-    f.style.height = (Math.abs(bend) * 50) + '%';
-    $('bthumb').style.bottom = 'calc(' + (frac * 100) + '% - ' + (frac * 4 - 2) + 'px)';
+    const w = $('bend'), f = (bend + 1) / 2, st = Math.round(bend * 200) / 100;
+    w.style.setProperty('--a', Math.min(f, 0.5));
+    w.style.setProperty('--b', Math.max(f, 0.5));
+    w.style.setProperty('--f', f);
     $('bend').setAttribute('aria-valuenow', String(st));
     $('bend').setAttribute('aria-valuetext', (st > 0 ? '+' : '') + st + ' semitones');
     post({ type: 'bend', v: bend * 2 });
   }
   {
     const w = $('bend');
-    let y0 = 0;
+    let x0 = 0, y0 = 0;
     w.addEventListener('pointerdown', e => {
       e.preventDefault();
       w.setPointerCapture(e.pointerId);
+      x0 = e.clientX;
       y0 = e.clientY;
       startLive();
     });
     w.addEventListener('pointermove', e => {
-      if (w.hasPointerCapture(e.pointerId)) bendSet((y0 - e.clientY) / (w.clientHeight / 2));
+      if (w.hasPointerCapture(e.pointerId)) bendSet(2 * stripMove(w, e, x0, y0));
     });
     const back = e => {
       if (w.hasPointerCapture(e.pointerId)) w.releasePointerCapture(e.pointerId);
