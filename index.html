@@ -692,7 +692,7 @@ footer { color: var(--muted); font-size: 12.5px; text-align: center; }
     say('Playing on your FM-1 now (not saved: choose another sound there and it is gone).', 'ok');
   });
   $('sendSave').onclick = () => busy($('sendSave'), async () => {
-    const h = await connect(), slots = await device.list();
+    const h = await connect(), slots = await device.list(h.slots);
     const free = slots.find(s => !s.used);
     if (!free) throw new Error('All ' + h.slots + ' user slots are taken: free one, or use the Librarian to replace one.');
     await device.write(rec, free.slot);

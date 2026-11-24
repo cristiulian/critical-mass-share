@@ -218,8 +218,8 @@
                 DATA: 0x17, END: 0x18, DELETE: 0x19, SELECT: 0x1A, ACK: 0x7E, NAK: 0x7F };
     const NAME = Object.fromEntries(Object.entries(C).map(([k, v]) => [v, k]));
     const NAKS = { 1: 'FRAME', 2: 'SLOT', 3: 'SIZE', 4: 'STATE', 5: 'OFFSET', 6: 'CRC', 7: 'RECORD', 8: 'FLASH',
-                   9: 'BUSY', 10: 'EMPTY' };
-    const AUDITION = 127, PART = 280, SLOTS = 32;
+                   9: 'BUSY', 10: 'EMPTY', 11: 'FULL' };
+    const AUDITION = 127, PART = 280, SLOTS = 64;   // (firmware before the packed bank: 32, as HELLO says)
     const TABLE = (() => {
       const t = new Uint32Array(256);
       for (let n = 0; n < 256; n++) {
@@ -283,7 +283,7 @@
       return r;
     }
 
-    function writePlan(record, slot) {           // [[frame, the answer it waits for]]; slot 1..32 or 'try'
+    function writePlan(record, slot) {           // [[frame, the answer it waits for]]; slot 1..64 or 'try'
       const s = slot === 'try' ? AUDITION : slot - 1;
       if (!(s === AUDITION || (s >= 0 && s < SLOTS))) throw new Error('slot ' + slot + ': 1..' + SLOTS);
       const crc = crc32(record);
@@ -337,12 +337,16 @@
       if (r.cmd !== 'HELLO_R') throw new Error('not a Critical Mass FM-1 (' + (r.why || r.cmd) + ')');
       return r;
     }
-    async list() {
+    async list(slots) {                          // answers of 16 until the slots HELLO said (32 or 64)
       this.queue = [];
       this.out.send(sx.list());
-      const a = await this.next(), b = await this.next();
-      if (a.cmd !== 'LIST_R' || b.cmd !== 'LIST_R') throw new Error('no list');
-      return [...a.slots, ...b.slots];
+      const all = [];
+      while (all.length < (slots || sx.SLOTS)) {
+        const a = await this.next();
+        if (a.cmd !== 'LIST_R') throw new Error('no list');
+        all.push(...a.slots);
+      }
+      return all;
     }
     async read(slot) {
       this.queue = [];
@@ -355,13 +359,14 @@
         if (parts.length === r.parts) return sx.joinRecord(parts);
       }
     }
-    async write(record, slot, progress) {        // slot 1..32, or 'try': played, not saved
+    async write(record, slot, progress) {        // slot 1..64, or 'try': played, not saved
       const plan = sx.writePlan(record, slot);
       for (let i = 0; i < plan.length; i++) {
         const [f, want] = plan[i];
         const r = await this.ask(f, i === plan.length - 1 ? 5000 : 2000);
         if (r.cmd !== 'ACK' || sx.ack(want[6], r.a, r.b, r.c).join() !== want.join()) {
-          throw new Error((r.why || 'unexpected answer') + ' at ' + (sx.parse(f).cmd));
+          throw new Error(r.why === 'FULL' ? 'no room left in the FM-1\'s bank (empty a slot, or try a smaller sound)'
+                                           : (r.why || 'unexpected answer') + ' at ' + (sx.parse(f).cmd));
         }
         if (progress) progress((i + 1) / plan.length);
       }
